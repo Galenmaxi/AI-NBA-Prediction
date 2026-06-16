@@ -83,3 +83,64 @@ def build_player_features(df: pd.DataFrame) -> pd.DataFrame:
             )
 
     return df
+
+
+def build_win_model_dataset(team_features_df: pd.DataFrame) -> pd.DataFrame:
+    """Build win probability training dataset.
+
+    Returns one row per team per game with rolling features and a binary target.
+    Rows with NaN rolling features (first game of a team) are dropped.
+    """
+    df = team_features_df.copy()
+    df["target"] = (df["wl"] == "W").astype(int)
+    df = df.dropna(subset=TEAM_FEATURE_COLS)
+    keep = ["game_id", "team_id", "game_date", "season"] + TEAM_FEATURE_COLS + ["target"]
+    return df[keep].reset_index(drop=True)
+
+
+def build_player_star_dataset(player_features_df: pd.DataFrame) -> pd.DataFrame:
+    """Build best-player prediction dataset.
+
+    Target: within each game_id, which player had the highest fantasy score?
+    Fantasy score = pts + 1.2*reb + 1.5*ast + 3*stl + 3*blk
+    """
+    df = player_features_df.copy()
+    df = df.dropna(subset=PLAYER_FEATURE_COLS)
+    df["fantasy_score"] = (
+        df["pts"] + 1.2 * df["reb"] + 1.5 * df["ast"] + 3 * df["stl"] + 3 * df["blk"]
+    )
+    df["is_star"] = df.groupby("game_id")["fantasy_score"].transform(
+        lambda x: (x == x.max()).astype(int)
+    )
+    keep = ["game_id", "player_id", "game_date", "season"] + PLAYER_FEATURE_COLS + ["is_star"]
+    available = [c for c in keep if c in df.columns]
+    return df[available].reset_index(drop=True)
+
+
+def build_player_stats_dataset(player_features_df: pd.DataFrame) -> pd.DataFrame:
+    """Build player stat prediction dataset.
+
+    Returns one row per player per game with rolling features and target stat columns.
+    """
+    df = player_features_df.copy()
+    df = df.dropna(subset=PLAYER_FEATURE_COLS)
+    keep = (
+        ["game_id", "player_id", "game_date", "season"]
+        + PLAYER_FEATURE_COLS
+        + ["pts", "reb", "ast", "stl", "blk"]
+    )
+    available = [c for c in keep if c in df.columns]
+    return df[available].reset_index(drop=True)
+
+
+def train_test_split_by_date(
+    df: pd.DataFrame,
+    test_season: str = "2025-26",
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split by season: train = all seasons except test_season, test = test_season.
+
+    Guarantees zero temporal leakage: the test set is always newer than the train set.
+    """
+    train = df[df["season"] != test_season].copy().reset_index(drop=True)
+    test = df[df["season"] == test_season].copy().reset_index(drop=True)
+    return train, test

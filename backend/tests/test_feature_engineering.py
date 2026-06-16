@@ -2,7 +2,16 @@ import pytest
 import pandas as pd
 from datetime import date, timedelta
 
-from ml.feature_engineering import build_team_features, build_player_features
+from ml.feature_engineering import (
+    build_team_features,
+    build_player_features,
+    build_win_model_dataset,
+    build_player_star_dataset,
+    build_player_stats_dataset,
+    train_test_split_by_date,
+    TEAM_FEATURE_COLS,
+    PLAYER_FEATURE_COLS,
+)
 
 
 def make_team_df(
@@ -145,3 +154,97 @@ def test_build_player_features_two_players_independent():
     r2 = result[result["player_id"] == 2]
     assert r1.iloc[2]["pts_avg_last5"] == pytest.approx(100.0)
     assert r2.iloc[2]["pts_avg_last5"] == pytest.approx(10.0)
+
+
+# ── Dataset builder + split tests ─────────────────────────────────────────────
+
+def make_full_team_df(n_games: int = 20) -> pd.DataFrame:
+    rows = []
+    base = date(2024, 10, 1)
+    for team_id in [1, 2]:
+        for i in range(n_games):
+            rows.append({
+                "team_id": team_id,
+                "season": "2024-25",
+                "game_id": f"G{team_id}{i:03d}",
+                "game_date": pd.Timestamp(base + timedelta(days=i * 2)),
+                "home_away": "HOME" if team_id == 1 else "AWAY",
+                "wl": "W" if i % 2 == 0 else "L",
+                "pts": 100 + i,
+            })
+    return pd.DataFrame(rows)
+
+
+def make_full_player_df(n_games: int = 20) -> pd.DataFrame:
+    rows = []
+    base = date(2024, 10, 1)
+    for player_id, base_pts in [(1, 30), (2, 20), (3, 15)]:
+        for i in range(n_games):
+            rows.append({
+                "player_id": player_id,
+                "season": "2024-25",
+                "game_id": f"PG{player_id}{i:03d}",
+                "game_date": pd.Timestamp(base + timedelta(days=i * 2)),
+                "wl": "W" if i % 2 == 0 else "L",
+                "pts": base_pts + i % 5,
+                "reb": 5 + i % 3,
+                "ast": 3 + i % 4,
+                "stl": 1,
+                "blk": 0,
+                "min": 30.0,
+                "team_id": 1,
+            })
+    return pd.DataFrame(rows)
+
+
+def test_build_win_model_dataset_returns_expected_columns():
+    features = build_team_features(make_full_team_df(15))
+    result = build_win_model_dataset(features)
+    for col in TEAM_FEATURE_COLS + ["target", "game_id", "team_id", "game_date", "season"]:
+        assert col in result.columns, f"Missing column: {col}"
+
+
+def test_build_win_model_dataset_target_is_binary():
+    features = build_team_features(make_full_team_df(15))
+    result = build_win_model_dataset(features)
+    assert set(result["target"].unique()).issubset({0, 1})
+
+
+def test_build_win_model_dataset_drops_nan_rows():
+    """First game per team has NaN rolling features and must be excluded."""
+    features = build_team_features(make_full_team_df(5))
+    result = build_win_model_dataset(features)
+    assert result[TEAM_FEATURE_COLS].isna().sum().sum() == 0
+
+
+def test_build_player_star_dataset_has_is_star_column():
+    features = build_player_features(make_full_player_df(15))
+    result = build_player_star_dataset(features)
+    assert "is_star" in result.columns
+    assert set(result["is_star"].unique()).issubset({0, 1})
+
+
+def test_build_player_stats_dataset_returns_expected_columns():
+    features = build_player_features(make_full_player_df(15))
+    result = build_player_stats_dataset(features)
+    for col in PLAYER_FEATURE_COLS + ["pts", "reb", "ast"]:
+        assert col in result.columns, f"Missing column: {col}"
+
+
+def test_train_test_split_by_date_correct_seasons():
+    rows = []
+    for season, n in [("2023-24", 10), ("2024-25", 10), ("2025-26", 5)]:
+        for i in range(n):
+            rows.append({"season": season, "game_id": f"{season}-{i}"})
+    df = pd.DataFrame(rows)
+    train, test = train_test_split_by_date(df, test_season="2025-26")
+    assert set(train["season"].unique()) == {"2023-24", "2024-25"}
+    assert set(test["season"].unique()) == {"2025-26"}
+
+
+def test_train_test_split_no_overlap():
+    rows = [{"season": "2023-24", "game_id": f"A{i}"} for i in range(5)]
+    rows += [{"season": "2025-26", "game_id": f"B{i}"} for i in range(5)]
+    df = pd.DataFrame(rows)
+    train, test = train_test_split_by_date(df)
+    assert len(set(train["game_id"]) & set(test["game_id"])) == 0
