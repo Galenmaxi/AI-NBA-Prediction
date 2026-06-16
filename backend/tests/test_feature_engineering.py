@@ -1,9 +1,8 @@
 import pytest
 import pandas as pd
-import numpy as np
 from datetime import date, timedelta
 
-from ml.feature_engineering import build_team_features
+from ml.feature_engineering import build_team_features, build_player_features
 
 
 def make_team_df(
@@ -89,3 +88,60 @@ def test_build_team_features_two_teams_independent():
     t2 = result[result["team_id"] == 2]
     assert t1.iloc[2]["win_pct_last10"] == pytest.approx(1.0)
     assert t2.iloc[2]["win_pct_last10"] == pytest.approx(0.0)
+
+
+# ── Player feature tests ──────────────────────────────────────────────────────
+
+def make_player_df(pts_sequence: list[int], player_id: int = 100) -> pd.DataFrame:
+    n = len(pts_sequence)
+    base_date = date(2024, 10, 1)
+    return pd.DataFrame({
+        "player_id": [player_id] * n,
+        "season": ["2024-25"] * n,
+        "game_id": [f"PG{player_id}{i:03d}" for i in range(n)],
+        "game_date": pd.to_datetime([base_date + timedelta(days=i * 2) for i in range(n)]),
+        "wl": ["W"] * n,
+        "pts": pts_sequence,
+        "reb": [5] * n,
+        "ast": [3] * n,
+        "stl": [1] * n,
+        "blk": [0] * n,
+        "min": [30.0] * n,
+    })
+
+
+def test_build_player_features_first_game_pts_avg_is_nan():
+    df = make_player_df([30, 25, 20])
+    result = build_player_features(df)
+    assert pd.isna(result.iloc[0]["pts_avg_last5"])
+
+
+def test_build_player_features_pts_avg_uses_only_past():
+    pts = [10, 20, 30, 40, 50, 999]
+    df = make_player_df(pts)
+    result = build_player_features(df)
+    # game 6 (index 5): shift(1) then rolling(5) sees games 1-5: [10,20,30,40,50]
+    expected = (10 + 20 + 30 + 40 + 50) / 5
+    assert result.iloc[5]["pts_avg_last5"] == pytest.approx(expected)
+
+
+def test_build_player_features_adds_all_expected_columns():
+    df = make_player_df([20, 25, 30])
+    result = build_player_features(df)
+    expected_cols = {
+        "pts_avg_last5", "pts_avg_last10",
+        "reb_avg_last5", "reb_avg_last10",
+        "ast_avg_last5", "ast_avg_last10",
+        "stl_avg_last5", "blk_avg_last5", "min_avg_last5",
+    }
+    assert expected_cols.issubset(set(result.columns))
+
+
+def test_build_player_features_two_players_independent():
+    p1 = make_player_df([100, 100, 100], player_id=1)
+    p2 = make_player_df([10, 10, 10], player_id=2)
+    result = build_player_features(pd.concat([p1, p2], ignore_index=True))
+    r1 = result[result["player_id"] == 1]
+    r2 = result[result["player_id"] == 2]
+    assert r1.iloc[2]["pts_avg_last5"] == pytest.approx(100.0)
+    assert r2.iloc[2]["pts_avg_last5"] == pytest.approx(10.0)

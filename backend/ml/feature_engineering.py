@@ -53,3 +53,33 @@ def build_team_features(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return df
+
+
+def build_player_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Add rolling player features to a player game log DataFrame.
+
+    Uses shift(1)-before-roll for zero data leakage.
+    NaN stats (DNP games) are preserved; callers should filter as needed.
+    """
+    df = df.copy()
+    df = df.sort_values(["player_id", "game_date"]).reset_index(drop=True)
+
+    _roll_stats: dict[str, list[int]] = {
+        "pts": [5, 10],
+        "reb": [5, 10],
+        "ast": [5, 10],
+        "stl": [5],
+        "blk": [5],
+        "min": [5],
+    }
+
+    for stat, windows in _roll_stats.items():
+        if stat not in df.columns:
+            continue
+        for w in windows:
+            df[f"{stat}_avg_last{w}"] = (
+                df.groupby("player_id")[stat]
+                .transform(lambda x, window=w: x.shift(1).rolling(window, min_periods=1).mean())
+            )
+
+    return df
