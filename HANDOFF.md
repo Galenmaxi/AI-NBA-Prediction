@@ -444,3 +444,79 @@ npm test
 | Phase 1 detailed plan | `docs/superpowers/plans/2026-06-16-phase1-data-pipeline.md` |
 | Phase 2 detailed plan | `docs/superpowers/plans/2026-06-16-phase2-feature-engineering.md` |
 | Phase 3 detailed plan | `docs/superpowers/plans/2026-06-17-phase3-fastapi.md` |
+| Phase 4 detailed plan | `docs/superpowers/plans/2026-06-17-phase4-nextjs-frontend.md` |
+
+---
+
+## What Has Been Built (Phase 5)
+
+### Git log additions
+```
+633def0  chore: add Railway/Vercel deployment config and clean up stale TS config files
+```
+
+### New files added
+| File | Purpose |
+|---|---|
+| `backend/Procfile` | Railway start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+| `backend/.python-version` | Pins Python 3.13 for Railway nixpacks auto-detection |
+| `frontend/.env.example` | Template showing `NEXT_PUBLIC_API_URL` env var for Vercel |
+
+### Deploying the Backend (Railway)
+
+Railway auto-detects Python via `requirements.txt` and reads `Procfile` for the start command.
+
+**Steps:**
+1. Go to [railway.app](https://railway.app) → log in with GitHub
+2. Click **New Project** → **Deploy from GitHub repo** → select `Galenmaxi/AI-NBA-Prediction`
+3. In project settings → **Root Directory** → set to `backend`
+4. Railway will auto-detect Python and install `requirements.txt`
+5. Add a **PostgreSQL** plugin: click **+ New** → **Database** → **Add PostgreSQL**
+6. Railway auto-sets `DATABASE_URL` from the plugin — no manual config needed
+7. Optional: add `REDIS_URL` from a Redis plugin if you want caching
+8. Click **Deploy** — first build takes ~10 minutes (heavy ML packages)
+9. After deploy, copy your Railway URL: `https://your-app.up.railway.app`
+10. Verify: visit `https://your-app.up.railway.app/health` → should return `{"status":"ok"}`
+
+> **Note:** Prediction endpoints return HTTP 503 until the database is seeded and ML models are trained. The health endpoint always works. See the seeding section in Phase 1 for how to run the seeder against the Railway DATABASE_URL once it's deployed.
+
+### Deploying the Frontend (Vercel)
+
+**Steps:**
+1. Go to [vercel.com](https://vercel.com) → log in with GitHub
+2. Click **Add New** → **Project** → import `Galenmaxi/AI-NBA-Prediction`
+3. In project settings → **Root Directory** → set to `frontend`
+4. Vercel auto-detects Next.js — leave Build Command and Output Directory as defaults
+5. Under **Environment Variables** → add:
+   - Key: `NEXT_PUBLIC_API_URL`
+   - Value: `https://your-app.up.railway.app` (your Railway URL from above)
+6. Click **Deploy** — build takes ~2 minutes
+7. Vercel gives you a URL like `https://ai-nba-prediction.vercel.app`
+8. Open it and click **Predict** on a matchup — the health check passes, predictions return 503 until DB is seeded
+
+### Seeding the Railway Database (after backend deploy)
+
+Once Railway is deployed, seed the database from your local machine:
+
+```powershell
+# Set DATABASE_URL to your Railway Postgres connection string
+# (copy it from Railway project → PostgreSQL plugin → Connect tab)
+$env:DATABASE_URL = "postgresql://postgres:xxx@monorail.proxy.rlwy.net:PORT/railway"
+
+cd backend
+.\venv\Scripts\activate
+python scripts/seed_database.py
+```
+
+This takes ~10-15 minutes due to NBA API rate limiting. After seeding, the `/predictions/*` endpoints will work (still return 503 until models are trained).
+
+### Training ML Models (after DB is seeded)
+
+```powershell
+cd backend
+.\venv\Scripts\activate
+python ml/train_win_model.py
+python ml/train_player_model.py
+```
+
+Trained `.joblib` files are saved to `backend/models/` (gitignored — upload to Railway manually or add a training step to the deploy pipeline).
