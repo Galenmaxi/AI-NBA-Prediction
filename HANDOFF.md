@@ -344,6 +344,81 @@ Only win probability is cached. TTL = 1 hour. Cache key: `win_prob:{home_id}:{aw
 
 ---
 
+## What Has Been Built (Phase 4)
+
+### Git log additions
+```
+62b461b  feat: add home page with matchup selector and player stats predictor
+b295d20  feat: add PlayerStatsCard with pts/reb/ast predicted stat display
+6acd6df  feat: add BestPlayerCard with ranked star-probability list
+37a0c83  feat: add WinProbabilityCard with Recharts horizontal bar and confidence badge
+8dafa4f  feat: add React Query provider and win-probability, best-player, player-stats hooks
+52504a4  feat: add shared utilities, shadcn Card/Badge, and NBA teams data
+695811a  feat: add TypeScript types and API fetch functions with tests
+4c27d78  chore: bootstrap Next.js 14 frontend with Tailwind, React Query, Jest
+```
+
+### Frontend tech stack installed
+| Package | Version | Purpose |
+|---|---|---|
+| next | 14.2.20 | Framework (App Router) |
+| react + react-dom | 18.3.1 | UI runtime |
+| @tanstack/react-query | 5.x | Server state + caching |
+| recharts | 2.x | Win probability bar chart |
+| tailwindcss | 3.x | Utility-first CSS |
+| class-variance-authority + clsx + tailwind-merge | latest | shadcn/ui utilities |
+
+### Running the frontend
+
+```powershell
+cd frontend
+npm install        # first time only
+npm run dev        # http://localhost:3000
+```
+
+The backend must also be running:
+```powershell
+cd backend
+.\venv\Scripts\activate
+python -m uvicorn app.main:app --reload --port 8000
+```
+
+### Pages and components
+| Component | Purpose |
+|---|---|
+| `src/app/page.tsx` | Home: matchup selector, win prob, best player, player stats |
+| `src/components/MatchupSelector.tsx` | Dropdown for all 30 NBA teams + Predict button |
+| `src/components/WinProbabilityCard.tsx` | Win % display + confidence badge + Recharts bar |
+| `src/components/BestPlayerCard.tsx` | Ranked list of star-probability predictions |
+| `src/components/PlayerStatsCard.tsx` | Predicted pts/reb/ast for a given player ID |
+
+### Test suite (frontend)
+13 tests, 0 failures.
+
+| File | Tests |
+|---|---|
+| `__tests__/api.test.ts` | 4 |
+| `__tests__/WinProbabilityCard.test.tsx` | 3 |
+| `__tests__/BestPlayerCard.test.tsx` | 3 |
+| `__tests__/PlayerStatsCard.test.tsx` | 3 |
+
+Run from `frontend/`:
+```powershell
+npm test
+```
+
+### Key file paths (Phase 4)
+| What | Path |
+|---|---|
+| Frontend root | `frontend/` |
+| API fetch functions | `frontend/src/lib/api.ts` |
+| TypeScript types | `frontend/src/lib/types.ts` |
+| NBA team IDs | `frontend/src/lib/teams.ts` |
+| Backend API URL | `frontend/.env.local` → `NEXT_PUBLIC_API_URL` |
+| Phase 4 plan | `docs/superpowers/plans/2026-06-17-phase4-nextjs-frontend.md` |
+
+---
+
 ## Important Decisions Made
 
 | Decision | Reason |
