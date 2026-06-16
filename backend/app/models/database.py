@@ -1,7 +1,10 @@
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from typing import Generator
+
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
 from app.models.base import Base
 
 load_dotenv()
@@ -17,6 +20,14 @@ SessionLocal = sessionmaker(bind=engine)
 
 def get_session() -> Session:
     return SessionLocal()
+
+
+def get_db() -> Generator[Session, None, None]:
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def create_tables() -> None:
