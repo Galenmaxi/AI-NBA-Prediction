@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+
 import pandas as pd
 from sqlalchemy.orm import Session
 
@@ -8,6 +11,36 @@ from app.models.team_game_log import TeamGameLog
 from ml.predict import predict_best_player, predict_player_stats, predict_win_probability
 
 _N_GAMES = 20
+PREDICT_CACHE_TTL: int = 3600
+
+
+def _get_redis():
+    """Return a Redis client or None if REDIS_URL is not set / connection fails."""
+    redis_url = os.getenv("REDIS_URL")
+    if not redis_url:
+        return None
+    try:
+        import redis as redis_lib
+        client = redis_lib.from_url(redis_url, socket_connect_timeout=2)
+        client.ping()
+        return client
+    except Exception:
+        return None
+
+
+def _cache_get(key: str) -> dict | None:
+    r = _get_redis()
+    if r is None:
+        return None
+    val = r.get(key)
+    return json.loads(val) if val else None
+
+
+def _cache_set(key: str, value: dict) -> None:
+    r = _get_redis()
+    if r is None:
+        return
+    r.setex(key, PREDICT_CACHE_TTL, json.dumps(value))
 
 
 def _confidence(home_prob: float) -> str:
@@ -32,6 +65,11 @@ def get_win_probability(
         ValueError: if a team has fewer than 2 games in the DB.
         FileNotFoundError: propagated from predict if model not trained.
     """
+    cache_key = f"win_prob:{home_team_id}:{away_team_id}"
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     def _fetch_team(team_id: int) -> pd.DataFrame:
         rows = (
             db.query(TeamGameLog)
@@ -62,7 +100,9 @@ def get_win_probability(
     away_df = _fetch_team(away_team_id)
 
     probs = predict_win_probability(home_df, away_df)
-    return {**probs, "confidence": _confidence(probs["home_win_prob"])}
+    result = {**probs, "confidence": _confidence(probs["home_win_prob"])}
+    _cache_set(cache_key, result)
+    return result
 
 
 def get_best_player(
