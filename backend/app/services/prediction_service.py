@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.models.player_game_log import PlayerGameLog
 from app.models.team_game_log import TeamGameLog
-from ml.predict import predict_best_player, predict_player_stats, predict_win_probability
+from ml.predict import predict_best_player, predict_game_total, predict_player_stats, predict_win_probability
 
 _N_GAMES = 20
 PREDICT_CACHE_TTL: int = 3600
@@ -48,6 +48,18 @@ def _confidence(home_prob: float) -> str:
     if spread >= 0.15:
         return "high"
     if spread >= 0.08:
+        return "medium"
+    return "low"
+
+
+_NBA_AVG_TOTAL: float = 224.0
+
+
+def _total_confidence(predicted: float) -> str:
+    deviation = abs(predicted - _NBA_AVG_TOTAL)
+    if deviation >= 12:
+        return "high"
+    if deviation >= 6:
         return "medium"
     return "low"
 
@@ -184,3 +196,49 @@ def get_player_stats(db: Session, player_id: int) -> dict[str, float]:
         for r in rows
     ])
     return predict_player_stats(df)
+
+
+def get_game_total(
+    db: Session,
+    home_team_id: int,
+    away_team_id: int,
+) -> dict:
+    """Predict total game score (home + away points).
+
+    Returns:
+        {"predicted_total": float, "confidence": str}
+    Raises:
+        ValueError: if a team has fewer than 2 games in the DB.
+        FileNotFoundError: propagated from predict if model not trained.
+    """
+    def _fetch_team(team_id: int) -> pd.DataFrame:
+        rows = (
+            db.query(TeamGameLog)
+            .filter(TeamGameLog.team_id == team_id)
+            .order_by(TeamGameLog.game_date.desc())
+            .limit(_N_GAMES)
+            .all()
+        )
+        if len(rows) < 2:
+            raise ValueError(
+                f"Not enough game data for team {team_id} "
+                f"(found {len(rows)} games, need at least 2)."
+            )
+        return pd.DataFrame([
+            {
+                "team_id": r.team_id,
+                "season": r.season,
+                "game_id": r.game_id,
+                "game_date": pd.Timestamp(r.game_date),
+                "home_away": r.home_away,
+                "wl": r.wl,
+                "pts": r.pts,
+            }
+            for r in rows
+        ])
+
+    home_df = _fetch_team(home_team_id)
+    away_df = _fetch_team(away_team_id)
+
+    result = predict_game_total(home_df, away_df)
+    return {**result, "confidence": _total_confidence(result["predicted_total"])}

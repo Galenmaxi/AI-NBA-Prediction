@@ -126,3 +126,23 @@ def test_player_stats_not_found_returns_422():
         resp = client.get("/predictions/player-stats?player_id=999")
     assert resp.status_code == 422
     assert "No game data found" in resp.json()["detail"]
+
+
+# --- /predictions/game-total ---
+
+def test_game_total_returns_200():
+    with patch("app.routers.predictions.get_game_total") as mock_svc:
+        mock_svc.return_value = {"predicted_total": 221.5, "confidence": "medium"}
+        resp = client.get("/predictions/game-total?home_team_id=1610612744&away_team_id=1610612747")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["predicted_total"] == 221.5
+    assert body["confidence"] == "medium"
+
+
+def test_game_total_returns_503_when_model_missing():
+    with patch("app.routers.predictions.get_game_total") as mock_svc:
+        mock_svc.side_effect = FileNotFoundError("Model not found at /path/total_model.joblib")
+        resp = client.get("/predictions/game-total?home_team_id=1610612744&away_team_id=1610612747")
+    assert resp.status_code == 503
+    assert "Model not found" in resp.json()["detail"]

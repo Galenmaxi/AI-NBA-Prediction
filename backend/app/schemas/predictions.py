@@ -30,3 +30,10 @@ class StatPrediction(BaseModel):
 class PlayerStatsResponse(BaseModel):
     player_id: int
     predicted_stats: StatPrediction
+
+
+class GameTotalResponse(BaseModel):
+    home_team_id: int
+    away_team_id: int
+    predicted_total: float
+    confidence: str

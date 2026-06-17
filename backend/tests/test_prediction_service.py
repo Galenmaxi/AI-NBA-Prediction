@@ -15,6 +15,7 @@ from app.services.prediction_service import (
     get_win_probability,
     get_best_player,
     get_player_stats,
+    get_game_total,
 )
 
 
@@ -164,3 +165,17 @@ def test_get_player_stats_returns_stat_predictions(db):
 def test_get_player_stats_raises_if_player_has_no_data(db):
     with pytest.raises(ValueError, match="No game data found for player"):
         get_player_stats(db, player_id=999)
+
+
+# --- get_game_total ---
+
+def test_get_game_total_returns_predicted_total_and_confidence(db):
+    _add_team_games(db, team_id=1)
+    _add_team_games(db, team_id=2)
+
+    with patch("app.services.prediction_service.predict_game_total") as mock_pred:
+        mock_pred.return_value = {"predicted_total": 221.5}
+        result = get_game_total(db, home_team_id=1, away_team_id=2)
+
+    assert result["predicted_total"] == 221.5
+    assert result["confidence"] in {"high", "medium", "low"}

@@ -4,12 +4,13 @@ from sqlalchemy.orm import Session
 from app.models.database import get_db
 from app.schemas.predictions import (
     BestPlayerResponse,
+    GameTotalResponse,
     PlayerStarPrediction,
     PlayerStatsResponse,
     StatPrediction,
     WinProbabilityResponse,
 )
-from app.services.prediction_service import get_best_player, get_player_stats, get_win_probability
+from app.services.prediction_service import get_best_player, get_game_total, get_player_stats, get_win_probability
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 
@@ -68,4 +69,24 @@ def player_stats(
     return PlayerStatsResponse(
         player_id=player_id,
         predicted_stats=StatPrediction(**stats),
+    )
+
+
+@router.get("/game-total", response_model=GameTotalResponse)
+def game_total(
+    home_team_id: int = Query(..., description="NBA team ID of the home team"),
+    away_team_id: int = Query(..., description="NBA team ID of the away team"),
+    db: Session = Depends(get_db),
+) -> GameTotalResponse:
+    try:
+        result = get_game_total(db, home_team_id, away_team_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return GameTotalResponse(
+        home_team_id=home_team_id,
+        away_team_id=away_team_id,
+        predicted_total=result["predicted_total"],
+        confidence=result["confidence"],
     )
