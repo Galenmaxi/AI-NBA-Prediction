@@ -1,6 +1,7 @@
 "use client"
 import { useState } from "react"
 import { BestPlayerCard } from "@/components/BestPlayerCard"
+import { GameTotalCard } from "@/components/GameTotalCard"
 import { MatchupSelector } from "@/components/MatchupSelector"
 import { PlayerStatsCard } from "@/components/PlayerStatsCard"
 import { WinProbabilityCard } from "@/components/WinProbabilityCard"
@@ -30,10 +31,15 @@ export default function HomePage() {
       </section>
 
       {matchup && (
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <WinProbabilityCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
-          <BestPlayerCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
-        </section>
+        <>
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <WinProbabilityCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
+            <BestPlayerCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
+          </section>
+          <section className="mb-8">
+            <GameTotalCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
+          </section>
+        </>
       )}
 
       <section>
