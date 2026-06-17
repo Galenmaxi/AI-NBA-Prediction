@@ -1,7 +1,8 @@
 # NBA AI Predictor — Agent Handoff Document
 
-> Last updated: 2026-06-17
+> Last updated: 2026-06-17 (Phase 6)
 > Use this document to onboard a new Claude Code agent to the current state of the project.
+> edit this file everytime you done a task 
 
 ---
 
@@ -426,14 +427,15 @@ python -m uvicorn app.main:app --reload --port 8000
 | `src/components/PlayerStatsCard.tsx` | Predicted pts/reb/ast for a given player ID |
 
 ### Test suite (frontend)
-13 tests, 0 failures.
+17 tests, 0 failures.
 
 | File | Tests |
 |---|---|
-| `__tests__/api.test.ts` | 4 |
+| `__tests__/api.test.ts` | 5 |
 | `__tests__/WinProbabilityCard.test.tsx` | 3 |
 | `__tests__/BestPlayerCard.test.tsx` | 3 |
 | `__tests__/PlayerStatsCard.test.tsx` | 3 |
+| `__tests__/GameTotalCard.test.tsx` | 3 |
 
 Run from `frontend/`:
 ```powershell
@@ -449,6 +451,59 @@ npm test
 | NBA team IDs | `frontend/src/lib/teams.ts` |
 | Backend API URL | `frontend/.env.local` → `NEXT_PUBLIC_API_URL` |
 | Phase 4 plan | `docs/superpowers/plans/2026-06-17-phase4-nextjs-frontend.md` |
+
+---
+
+## What Has Been Built (Phase 6)
+
+### Git log additions
+```
+1a40876  feat: add GameTotalCard component and wire into home page
+15101e5  feat: add GameTotalResponse type, fetchGameTotal API call, and useGameTotal hook
+7bd5d46  feat: add game-total prediction endpoint (schema, service, router)
+3ec9fe5  feat: add predict_game_total inference function
+5c9cc57  feat: add XGBoost game total (over/under) training script
+63f35bc  feat: add TOTAL_FEATURE_COLS and build_total_model_dataset to feature engineering
+```
+
+### What was added
+The last unimplemented goal — **Predicts game total score (over/under)** — is now complete.
+
+| Layer | What changed |
+|---|---|
+| `ml/feature_engineering.py` | `TOTAL_FEATURE_COLS` (12 features) + `build_total_model_dataset()` |
+| `ml/train_total_model.py` | XGBRegressor (device=cuda), MAE metric, saves `models/total_model.joblib` |
+| `ml/predict.py` | `predict_game_total(home_df, away_df) → {"predicted_total": float}` |
+| `app/schemas/predictions.py` | `GameTotalResponse` |
+| `app/services/prediction_service.py` | `get_game_total()` + `_total_confidence()` |
+| `app/routers/predictions.py` | `GET /predictions/game-total?home_team_id=&away_team_id=` |
+| `frontend/src/lib/types.ts` | `GameTotalResponse` interface |
+| `frontend/src/lib/api.ts` | `fetchGameTotal()` |
+| `frontend/src/hooks/useGameTotal.ts` | `useGameTotal()` hook |
+| `frontend/src/components/GameTotalCard.tsx` | Card showing total + confidence badge |
+| `frontend/src/app/page.tsx` | `GameTotalCard` rendered below win prob / best player |
+
+### Confidence scoring for game total
+```
+_NBA_AVG_TOTAL = 224.0
+deviation = |predicted_total - 224|
+deviation ≥ 12 → "high"   (teams clearly high/low scoring)
+deviation ≥ 6  → "medium"
+otherwise      → "low"
+```
+
+### Training the total model (after DB is seeded)
+```powershell
+cd backend
+.\venv\Scripts\activate
+python ml/train_total_model.py
+```
+
+### Test counts after Phase 6
+| Suite | Tests |
+|---|---|
+| Backend (`pytest tests/`) | 97 |
+| Frontend (`npm test`) | 17 |
 
 ---
 
