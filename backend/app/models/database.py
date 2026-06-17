@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 from typing import Generator
 
 from dotenv import load_dotenv
@@ -10,8 +9,10 @@ from app.models.base import Base
 
 load_dotenv()
 
-_DEFAULT_DB = f"sqlite:///{Path(__file__).parent.parent.parent.parent / 'nba_predictor.db'}"
-DATABASE_URL = os.getenv("DATABASE_URL", _DEFAULT_DB)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://nba_user:nba_password@localhost:5432/nba_predictor",
+)
 
 _connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, connect_args=_connect_args)
