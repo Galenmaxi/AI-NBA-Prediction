@@ -9,7 +9,7 @@ __pycache__/
 dist/
 build/
 *.pkl
-*.joblib
+# *.joblib  # models are committed so Railway can serve them
 mlruns/
 .DS_Store
 node_modules/

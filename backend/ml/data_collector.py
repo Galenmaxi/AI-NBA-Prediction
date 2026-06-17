@@ -49,7 +49,7 @@ def clean_player_game_logs(df: pd.DataFrame) -> pd.DataFrame:
         lambda x: "HOME" if "vs." in str(x) else "AWAY"
     )
     df["game_date"] = pd.to_datetime(df["game_date"], format="mixed")
-    df = df.dropna(subset=["game_id", "player_id", "game_date"])
+    df = df.dropna(subset=["game_id", "player_id", "game_date", "player_name"])
     return df[[c for c in _PLAYER_COLUMNS if c in df.columns]]
 
 
