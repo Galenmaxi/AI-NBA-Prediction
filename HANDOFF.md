@@ -177,15 +177,49 @@ pytest tests/ -v
 
 ## Environment Setup (for a new machine)
 
+Uses **uv** for fast venv + package management (installed globally via `pip install uv`).
+
 ```powershell
 cd backend
-python -m venv venv
+
+# Create venv with Python 3.13
+uv venv venv --python 3.13
+
+# Activate
 .\venv\Scripts\activate
-pip install -r requirements.txt
-pytest tests/ -v    # should show 21 passed
+
+# Install core dependencies
+uv pip install -r requirements.txt
+
+# Install PyTorch with CUDA 12.4 (GTX 1650 / CUDA 12.5 compatible)
+uv pip install -r requirements-gpu.txt
+
+# Verify GPU
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# Expected: True  NVIDIA GeForce GTX 1650
+
+pytest tests/ -v    # should show 87 passed
 ```
 
-**IDE note:** VS Code will show `Cannot find module 'nba_api.stats.endpoints'` because the IDE Python interpreter points to the system Python, not the venv. This is a false positive — the venv has nba_api installed and all tests pass. Point VS Code to `backend/venv/Scripts/python.exe` to resolve it.
+**IDE note:** VS Code will show `Cannot find module` errors because the IDE Python interpreter points to the system Python, not the venv. This is a false positive — all 87 tests pass. Point VS Code to `backend/venv/Scripts/python.exe` to resolve it.
+
+### GPU configuration
+| Library | Setting | File |
+|---|---|---|
+| XGBoost (win model) | `device="cuda"` | `ml/train_win_model.py` |
+| XGBoost (stat models) | `device="cuda"` | `ml/train_player_model.py` |
+| LightGBM (best player) | `device="gpu"` | `ml/train_player_model.py` |
+
+Verified on NVIDIA GeForce GTX 1650 (sm_75, 4 GB VRAM, CUDA 12.5):
+```
+torch version      : 2.6.0+cu124
+CUDA available     : True
+GPU device name    : NVIDIA GeForce GTX 1650
+VRAM total         : 4.0 GB
+Compute capability : (7, 5)
+XGBoost device=cuda — OK
+LightGBM device=gpu  — OK
+```
 
 ---
 
