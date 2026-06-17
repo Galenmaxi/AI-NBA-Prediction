@@ -3,7 +3,7 @@ import { useState } from "react"
 import { BestPlayerCard } from "@/components/BestPlayerCard"
 import { GameTotalCard } from "@/components/GameTotalCard"
 import { MatchupSelector } from "@/components/MatchupSelector"
-import { PlayerStatsCard } from "@/components/PlayerStatsCard"
+import { StarStatCard } from "@/components/StarStatCard"
 import { WinProbabilityCard } from "@/components/WinProbabilityCard"
 
 interface Matchup {
@@ -13,65 +13,41 @@ interface Matchup {
 
 export default function HomePage() {
   const [matchup, setMatchup] = useState<Matchup | null>(null)
-  const [playerIdInput, setPlayerIdInput] = useState("")
-  const [activePlayerId, setActivePlayerId] = useState<number | null>(null)
 
   return (
-    <main className="container mx-auto p-6 max-w-5xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">NBA AI Predictor</h1>
-        <p className="text-muted-foreground mt-1">
-          Select a matchup to see AI-powered win probability and player predictions.
-        </p>
-      </div>
+    <main style={{ minHeight: "100vh", padding: "28px 28px 60px" }}>
+      <div style={{ maxWidth: 1120, margin: "0 auto" }}>
 
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-4">Select Matchup</h2>
-        <MatchupSelector onSubmit={(h, a) => setMatchup({ homeTeamId: h, awayTeamId: a })} />
-      </section>
-
-      {matchup && (
-        <>
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <WinProbabilityCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
-            <BestPlayerCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
-          </section>
-          <section className="mb-8">
-            <GameTotalCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
-          </section>
-        </>
-      )}
-
-      <section>
-        <h2 className="text-lg font-semibold mb-4">Player Stats Predictor</h2>
-        <p className="text-sm text-muted-foreground mb-3">
-          Enter an NBA player ID (e.g. 2544 = LeBron James, 201939 = Stephen Curry).
-        </p>
-        <div className="flex gap-3 items-end">
-          <div>
-            <label className="text-sm font-medium block mb-1">Player ID</label>
-            <input
-              type="number"
-              value={playerIdInput}
-              onChange={(e) => setPlayerIdInput(e.target.value)}
-              placeholder="e.g. 2544"
-              className="border rounded-md px-3 py-2 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
+        <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, paddingBottom: 24, borderBottom: "1px solid rgba(255,255,255,0.07)", marginBottom: 26 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{ width: 42, height: 42, borderRadius: 11, background: "linear-gradient(135deg,#3a7ff7,#1d4ed8)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Barlow Condensed', sans-serif", fontWeight: 700, fontSize: 24, color: "#fff", boxShadow: "0 6px 20px rgba(58,127,247,0.35)" }}>
+              AI
+            </div>
+            <div>
+              <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 23, letterSpacing: "0.2px", lineHeight: 1 }}>NBA AI Predictor</div>
+              <div style={{ color: "#7d8aa0", fontSize: 13.5, fontWeight: 500, marginTop: 3 }}>ML-powered game predictions</div>
+            </div>
           </div>
-          <button
-            onClick={() => setActivePlayerId(Number(playerIdInput))}
-            disabled={!playerIdInput || Number(playerIdInput) <= 0}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Predict
-          </button>
-        </div>
-        {activePlayerId && (
-          <div className="mt-4">
-            <PlayerStatsCard playerId={activePlayerId} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 13px", border: "1px solid rgba(74,222,128,0.25)", background: "rgba(74,222,128,0.08)", borderRadius: 999 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80", boxShadow: "0 0 8px #4ade80", display: "inline-block" }} />
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#86efac", letterSpacing: "0.3px" }}>MODELS LIVE</span>
+          </div>
+        </header>
+
+        <section style={{ marginBottom: 22 }}>
+          <MatchupSelector onSubmit={(h, a) => setMatchup({ homeTeamId: h, awayTeamId: a })} />
+        </section>
+
+        {matchup && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 20 }}>
+            <WinProbabilityCard homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
+            <BestPlayerCard     homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
+            <StarStatCard       homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
+            <GameTotalCard      homeTeamId={matchup.homeTeamId} awayTeamId={matchup.awayTeamId} />
           </div>
         )}
-      </section>
+
+      </div>
     </main>
   )
 }
