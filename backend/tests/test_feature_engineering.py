@@ -8,9 +8,11 @@ from ml.feature_engineering import (
     build_win_model_dataset,
     build_player_star_dataset,
     build_player_stats_dataset,
+    build_total_model_dataset,
     train_test_split_by_date,
     TEAM_FEATURE_COLS,
     PLAYER_FEATURE_COLS,
+    TOTAL_FEATURE_COLS,
 )
 
 
@@ -248,3 +250,39 @@ def test_train_test_split_no_overlap():
     df = pd.DataFrame(rows)
     train, test = train_test_split_by_date(df)
     assert len(set(train["game_id"]) & set(test["game_id"])) == 0
+
+
+# ── Game total dataset tests ───────────────────────────────────────────────────
+
+def make_paired_team_df(n_games: int = 15) -> pd.DataFrame:
+    """Home team (id=1) + away team (id=2) sharing the same game_id per game."""
+    base = date(2024, 10, 1)
+    rows = []
+    for i in range(n_games):
+        game_id = f"GAME{i:04d}"
+        rows.append({
+            "team_id": 1, "season": "2024-25", "game_id": game_id,
+            "game_date": pd.Timestamp(base + timedelta(days=i * 2)),
+            "home_away": "HOME", "wl": "W", "pts": 110 + i,
+        })
+        rows.append({
+            "team_id": 2, "season": "2024-25", "game_id": game_id,
+            "game_date": pd.Timestamp(base + timedelta(days=i * 2)),
+            "home_away": "AWAY", "wl": "L", "pts": 100 + i,
+        })
+    return pd.DataFrame(rows)
+
+
+def test_total_feature_cols_has_home_and_away_prefixes():
+    for col in TEAM_FEATURE_COLS:
+        assert f"home_{col}" in TOTAL_FEATURE_COLS
+        assert f"away_{col}" in TOTAL_FEATURE_COLS
+
+
+def test_build_total_model_dataset_has_total_target():
+    df = make_paired_team_df(n_games=15)
+    team_feat = build_team_features(df)
+    result = build_total_model_dataset(team_feat)
+    assert "total" in result.columns
+    assert (result["total"] > 0).all()
+    assert set(TOTAL_FEATURE_COLS).issubset(result.columns)

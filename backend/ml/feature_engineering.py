@@ -9,6 +9,11 @@ TEAM_FEATURE_COLS: list[str] = [
     "season_win_pct",
 ]
 
+TOTAL_FEATURE_COLS: list[str] = (
+    [f"home_{c}" for c in TEAM_FEATURE_COLS] +
+    [f"away_{c}" for c in TEAM_FEATURE_COLS]
+)
+
 PLAYER_FEATURE_COLS: list[str] = [
     "pts_avg_last5", "pts_avg_last10",
     "reb_avg_last5", "reb_avg_last10",
@@ -96,6 +101,37 @@ def build_win_model_dataset(team_features_df: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=TEAM_FEATURE_COLS)
     keep = ["game_id", "team_id", "game_date", "season"] + TEAM_FEATURE_COLS + ["target"]
     return df[keep].reset_index(drop=True)
+
+
+def build_total_model_dataset(team_features_df: pd.DataFrame) -> pd.DataFrame:
+    """Build game-total prediction dataset by joining home and away team rows.
+
+    Requires that home and away rows for the same game share the same game_id.
+    Target: home_pts + away_pts (total points scored in the game).
+    """
+    df = team_features_df.copy()
+    df = df.dropna(subset=TEAM_FEATURE_COLS)
+
+    home = df[df["is_home"] == 1].copy()
+    away = df[df["is_home"] == 0].copy()
+
+    home_rename = {"pts": "home_pts"}
+    home_rename.update({c: f"home_{c}" for c in TEAM_FEATURE_COLS})
+    home_r = home.rename(columns=home_rename)[
+        ["game_id", "game_date", "season", "home_pts"] + [f"home_{c}" for c in TEAM_FEATURE_COLS]
+    ]
+
+    away_rename = {"pts": "away_pts"}
+    away_rename.update({c: f"away_{c}" for c in TEAM_FEATURE_COLS})
+    away_r = away.rename(columns=away_rename)[
+        ["game_id", "away_pts"] + [f"away_{c}" for c in TEAM_FEATURE_COLS]
+    ]
+
+    merged = home_r.merge(away_r, on="game_id", how="inner")
+    merged["total"] = merged["home_pts"] + merged["away_pts"]
+
+    keep = ["game_id", "game_date", "season"] + TOTAL_FEATURE_COLS + ["total"]
+    return merged[keep].reset_index(drop=True)
 
 
 def build_player_star_dataset(player_features_df: pd.DataFrame) -> pd.DataFrame:
