@@ -1,4 +1,4 @@
-import type { BestPlayerResponse, PlayerStatsResponse, WinProbabilityResponse } from "./types"
+import type { BestPlayerResponse, GameTotalResponse, PlayerStatsResponse, WinProbabilityResponse } from "./types"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -31,4 +31,13 @@ export function fetchBestPlayer(
 
 export function fetchPlayerStats(playerId: number): Promise<PlayerStatsResponse> {
   return apiFetch(`/predictions/player-stats?player_id=${playerId}`)
+}
+
+export function fetchGameTotal(
+  homeTeamId: number,
+  awayTeamId: number,
+): Promise<GameTotalResponse> {
+  return apiFetch(
+    `/predictions/game-total?home_team_id=${homeTeamId}&away_team_id=${awayTeamId}`,
+  )
 }

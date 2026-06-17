@@ -1,4 +1,4 @@
-import { fetchWinProbability, fetchBestPlayer, fetchPlayerStats } from "@/lib/api"
+import { fetchWinProbability, fetchBestPlayer, fetchPlayerStats, fetchGameTotal } from "@/lib/api"
 
 const mockFetch = jest.fn()
 global.fetch = mockFetch
@@ -50,6 +50,19 @@ describe("fetchPlayerStats", () => {
     await fetchPlayerStats(2544)
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8000/predictions/player-stats?player_id=2544"
+    )
+  })
+})
+
+describe("fetchGameTotal", () => {
+  it("calls the correct URL with team IDs", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ home_team_id: 1, away_team_id: 2, predicted_total: 221.5, confidence: "medium" }),
+    })
+    await fetchGameTotal(1, 2)
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8000/predictions/game-total?home_team_id=1&away_team_id=2"
     )
   })
 })

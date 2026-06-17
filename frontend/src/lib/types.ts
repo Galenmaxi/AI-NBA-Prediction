@@ -28,3 +28,10 @@ export interface PlayerStatsResponse {
   player_id: number
   predicted_stats: StatPrediction
 }
+
+export interface GameTotalResponse {
+  home_team_id: number
+  away_team_id: number
+  predicted_total: number
+  confidence: "low" | "medium" | "high"
+}
