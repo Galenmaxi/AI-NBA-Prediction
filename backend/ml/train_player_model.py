@@ -38,6 +38,7 @@ _BEST_PLAYER_PARAMS: dict = {
     "subsample": 0.8,
     "random_state": 42,
     "verbose": -1,
+    "device": "gpu",
 }
 
 _STAT_PARAMS: dict = {
@@ -47,6 +48,7 @@ _STAT_PARAMS: dict = {
     "subsample": 0.8,
     "random_state": 42,
     "verbosity": 0,
+    "device": "cuda",
 }
 
 

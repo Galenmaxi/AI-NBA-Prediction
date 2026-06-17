@@ -32,6 +32,7 @@ _PARAMS: dict = {
     "eval_metric": "logloss",
     "random_state": 42,
     "verbosity": 0,
+    "device": "cuda",
 }
 
 

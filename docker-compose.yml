@@ -1,26 +1,7 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nba_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nba_password}
-      POSTGRES_DB: ${POSTGRES_DB:-nba_predictor}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nba_user}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-
-volumes:
-  postgres_data:
