@@ -1,6 +1,6 @@
 # NBA AI Predictor — Agent Handoff Document
 
-> Last updated: 2026-06-16
+> Last updated: 2026-06-17
 > Use this document to onboard a new Claude Code agent to the current state of the project.
 
 ---
@@ -22,32 +22,33 @@ An **NBA AI Prediction System** — a full-stack application that:
 ### Python Backend / ML
 | Package | Version | Purpose |
 |---|---|---|
-| Python | 3.13.5 (64-bit) | Runtime — **NOT 3.11** as originally planned |
+| Python | 3.13.5 (64-bit) | Runtime |
+| uv | 0.11.21 | Venv + package manager (replaces pip + venv) |
 | nba_api | 1.11.4 | NBA stats data (stats.nba.com) |
-| pandas | 3.0.3 | Data wrangling |
+| pandas | 2.3.3 | Data wrangling |
 | numpy | 2.4.6 | Numerical ops |
-| sqlalchemy | 2.0.51 | ORM |
-| psycopg2-binary | 2.9.12 | PostgreSQL driver |
+| sqlalchemy | 2.0.51 | ORM (SQLite in dev, swappable) |
 | python-dotenv | 1.2.2 | Env var loading |
+| scikit-learn | 1.9.0 | Preprocessing pipelines |
+| xgboost | 3.2.0 | Win probability + stat prediction models |
+| lightgbm | 4.6.0 | Best player prediction model |
+| mlflow | 3.13.0 | Experiment tracking |
+| fastapi | 0.115.6 | REST API framework |
+| uvicorn | 0.34.3 | ASGI server |
+| httpx | 0.28.1 | TestClient support in tests |
+| redis | 5.2.1 | Optional response caching (graceful fallback) |
+| torch | 2.6.0+cu124 | GPU verification + future deep learning |
 | pytest | 9.1.0 | Testing |
 | pytest-mock | 3.15.1 | Mocking in tests |
 
-> **Important:** The originally specified versions (pandas 2.1.4, numpy 1.26.2) had no pre-built wheels for Python 3.13 and failed to build from source (requires GCC ≥ 8.4, system has 6.3.0). All versions above are the actual installed versions that work.
-
-### Planned (not yet installed — future phases)
-- `scikit-learn` — preprocessing pipelines
-- `xgboost` + `lightgbm` — primary ML models
-- `mlflow` — experiment tracking
-- `fastapi` + `uvicorn` — REST API
-- `celery` + `redis` — background jobs
+> **Note:** pandas 2.1.4 / numpy 1.26.2 (original spec) had no pre-built wheels for Python 3.13. All versions above are the actual working versions.
 
 ### Infrastructure
 | Tool | Purpose |
 |---|---|
-| Docker + docker-compose | Local PostgreSQL + Redis |
-| PostgreSQL 15 | Stores game logs and predictions |
-| Redis 7 | Cache / task queue (Phase 3+) |
-| Railway or Render | Backend hosting (Phase 5) |
+| SQLite | Local database — file created automatically, no Docker needed |
+| Redis 7 (optional) | Response caching via docker-compose; backend works without it |
+| Railway | Backend hosting (Phase 5) — use Railway PostgreSQL if deploying |
 | Vercel | Frontend hosting (Phase 5) |
 
 ### Frontend (Phase 4 — not started)
@@ -63,41 +64,47 @@ An **NBA AI Prediction System** — a full-stack application that:
 ```
 nba-ai-predictor/
 ├── HANDOFF.md                      ← this file
-├── docker-compose.yml              ← PostgreSQL 15 + Redis 7
-├── .env                            ← local secrets (git-ignored)
+├── docker-compose.yml              ← Redis 7 only (Postgres removed — using SQLite)
+├── .env                            ← DATABASE_URL=sqlite:///./nba_predictor.db
 ├── .env.example                    ← template (committed)
 ├── .gitignore
+├── nba_predictor.db                ← SQLite DB file (created after seeding, git-ignored)
 ├── docs/
-│   └── superpowers/plans/
-│       └── 2026-06-16-phase1-data-pipeline.md   ← full Phase 1 plan
+│   └── superpowers/plans/          ← phase implementation plans
 ├── backend/
 │   ├── pytest.ini                  ← pythonpath = . (required for imports to work)
-│   ├── requirements.txt            ← pinned to Python 3.13 compatible versions
-│   ├── venv/                       ← virtual environment (git-ignored)
+│   ├── requirements.txt            ← core deps, Python 3.13 compatible
+│   ├── requirements-gpu.txt        ← torch cu124 (CUDA 12.4, compatible with 12.5)
+│   ├── Procfile                    ← Railway start command
+│   ├── .python-version             ← pins Python 3.13 for Railway nixpacks
+│   ├── venv/                       ← uv-managed virtual environment (git-ignored)
 │   ├── app/
 │   │   ├── models/
 │   │   │   ├── base.py             ← DeclarativeBase
 │   │   │   ├── team_game_log.py    ← TeamGameLog ORM model
 │   │   │   ├── player_game_log.py  ← PlayerGameLog ORM model
-│   │   │   ├── database.py         ← engine, SessionLocal, create_tables()
+│   │   │   ├── database.py         ← engine, SessionLocal, create_tables(); SQLite default
 │   │   │   └── __init__.py         ← re-exports Base, TeamGameLog, PlayerGameLog
-│   │   ├── main.py                 ← placeholder (Phase 3)
-│   │   ├── schemas/                ← placeholder (Phase 3)
-│   │   ├── routers/                ← placeholder (Phase 3)
-│   │   └── services/               ← placeholder (Phase 3)
+│   │   ├── main.py                 ← FastAPI app with CORS
+│   │   ├── schemas/                ← Pydantic response models
+│   │   ├── routers/                ← health + predictions endpoints
+│   │   └── services/               ← prediction service with Redis cache
 │   ├── ml/
-│   │   ├── data_collector.py       ← COMPLETE: fetch + clean team/player logs
-│   │   ├── feature_engineering.py  ← placeholder (Phase 2)
-│   │   ├── train_win_model.py      ← placeholder (Phase 2)
-│   │   ├── train_player_model.py   ← placeholder (Phase 2)
-│   │   └── predict.py              ← placeholder (Phase 2/3)
+│   │   ├── data_collector.py       ← fetch + clean team/player logs from nba_api
+│   │   ├── feature_engineering.py  ← rolling averages, rest days, matchup features
+│   │   ├── train_win_model.py      ← XGBClassifier, device=cuda
+│   │   ├── train_player_model.py   ← LGBMClassifier + XGBRegressor, device=gpu/cuda
+│   │   └── predict.py              ← inference layer loading .joblib models
+│   ├── models/                     ← trained .joblib files (git-ignored)
 │   ├── scripts/
-│   │   └── seed_database.py        ← COMPLETE: idempotent historical data loader
-│   └── tests/
-│       ├── test_models.py          ← 3 tests (SQLite in-memory)
-│       ├── test_data_collector.py  ← 12 tests (mocked nba_api)
-│       └── test_seed_database.py   ← 6 tests (SQLite in-memory)
-└── frontend/                       ← empty, Phase 4
+│   │   └── seed_database.py        ← idempotent historical data loader
+│   └── tests/                      ← 87 tests (all pass without Docker)
+└── frontend/                       ← Next.js 14 app (Phase 4 complete)
+    ├── src/app/                    ← App Router pages + layout
+    ├── src/components/             ← WinProbabilityCard, BestPlayerCard, etc.
+    ├── src/lib/                    ← api.ts, types.ts, teams.ts, utils.ts
+    ├── src/hooks/                  ← useWinProbability, useBestPlayer, usePlayerStats
+    └── __tests__/                  ← 13 Jest tests
 ```
 
 ---
@@ -223,21 +230,16 @@ LightGBM device=gpu  — OK
 
 ---
 
-## Outstanding Step (Task 6 — needs Docker)
-
-Docker Desktop is **not installed** on this machine. Once installed, complete Phase 1 by running:
+## Seeding the Database (SQLite, no Docker needed)
 
 ```powershell
-# 1. Start PostgreSQL
-cd c:\Users\ASUS\OneDrive\Documents\AI_NBA_Prediction\nba-ai-predictor
-docker compose up -d postgres
-
-# 2. Create tables
-cd backend
+cd c:\Users\ASUS\OneDrive\Documents\AI_NBA_Prediction\nba-ai-predictor\backend
 .\venv\Scripts\activate
+
+# 1. Create tables (creates nba_predictor.db in the project root)
 python -c "from app.models.database import create_tables; create_tables(); print('ok')"
 
-# 3. Smoke test (verify nba_api live — already confirmed working, ~2786 rows for 2023-24)
+# 2. Smoke test — verify nba_api is reachable (~2786 rows for 2023-24)
 python -c "
 from ml.data_collector import fetch_team_game_logs
 df = fetch_team_game_logs('2023-24')
@@ -245,13 +247,10 @@ print(f'Rows: {len(df)}')
 print(df[['season','team_abbreviation','game_date','matchup','wl','pts']].head(3).to_string())
 "
 
-# 4. Full seed (~10-15 min due to rate limiting)
+# 3. Full seed (~10-15 min due to NBA API rate limiting)
 python scripts/seed_database.py
 
-# 5. Verify in Postgres
-docker exec -it $(docker compose ps -q postgres) psql -U nba_user -d nba_predictor -c "SELECT season, COUNT(*) FROM team_game_logs GROUP BY season ORDER BY season;"
-
-# 6. Re-run seeder — all Inserted N rows should be 0
+# 4. Re-run to verify idempotency — all counts should be 0
 python scripts/seed_database.py
 ```
 
@@ -459,8 +458,13 @@ npm test
 |---|---|
 | Upgraded to Python 3.13-compatible package versions | System Python is 3.13.5; original pinned versions had no pre-built wheels |
 | `pytest.ini` with `pythonpath = .` added | Without it, `app`, `ml`, `scripts` are not on the Python path when running pytest from `backend/` |
-| Tests use SQLite in-memory | No Docker needed to run the test suite; all 21 tests pass without any running services |
-| Seeder is row-by-row with existence check | Simple and backend-agnostic (works with SQLite for tests, PostgreSQL for prod) |
+| SQLite for local DB (switched from Postgres) | Personal project — no Docker/Postgres overhead; SQLAlchemy ORM is database-agnostic |
+| `check_same_thread=False` in SQLite engine | FastAPI runs async; SQLite needs this flag to allow cross-thread session sharing |
+| uv replaces pip + venv | 10–100× faster installs; drop-in replacement, no workflow change |
+| Separate `requirements-gpu.txt` for torch | torch cu124 is ~2.5 GB; keep it out of `requirements.txt` so Railway/CI don't pull it |
+| `device="cuda"` in XGBoost params | GTX 1650 (sm_75) confirmed working; training runs on GPU automatically |
+| `device="gpu"` in LightGBM params | LightGBM uses OpenCL GPU backend; verified working on GTX 1650 |
+| Seeder is row-by-row with existence check | Simple and database-agnostic (same code works for SQLite and Postgres) |
 | `format="mixed"` for date parsing | nba_api can return dates as ISO ("2022-10-18") or text ("OCT 18, 2022") depending on endpoint |
 | `home_away` derived from `MATCHUP` string | "vs." = home game, "@" = away game — this is the NBA stats API convention |
 
@@ -473,8 +477,11 @@ npm test
 | Virtual environment Python | `backend/venv/Scripts/python.exe` |
 | Run tests | `cd backend && .\venv\Scripts\activate && pytest tests/ -v` |
 | Run seeder | `cd backend && .\venv\Scripts\activate && python scripts/seed_database.py` |
-| DB connection string | `backend/.env` → `DATABASE_URL` |
-| Docker Compose | `docker-compose.yml` (project root) |
+| DB file (SQLite) | `nba_predictor.db` (project root, created on first seed) |
+| DB connection string | `.env` (project root) → `DATABASE_URL` |
+| Redis (optional) | `docker-compose.yml` → `docker compose up -d redis` |
+| Core dependencies | `backend/requirements.txt` |
+| GPU dependencies | `backend/requirements-gpu.txt` (torch cu124) |
 | Phase 1 detailed plan | `docs/superpowers/plans/2026-06-16-phase1-data-pipeline.md` |
 | Phase 2 detailed plan | `docs/superpowers/plans/2026-06-16-phase2-feature-engineering.md` |
 | Phase 3 detailed plan | `docs/superpowers/plans/2026-06-17-phase3-fastapi.md` |
@@ -505,14 +512,13 @@ Railway auto-detects Python via `requirements.txt` and reads `Procfile` for the 
 2. Click **New Project** → **Deploy from GitHub repo** → select `Galenmaxi/AI-NBA-Prediction`
 3. In project settings → **Root Directory** → set to `backend`
 4. Railway will auto-detect Python and install `requirements.txt`
-5. Add a **PostgreSQL** plugin: click **+ New** → **Database** → **Add PostgreSQL**
-6. Railway auto-sets `DATABASE_URL` from the plugin — no manual config needed
-7. Optional: add `REDIS_URL` from a Redis plugin if you want caching
-8. Click **Deploy** — first build takes ~10 minutes (heavy ML packages)
-9. After deploy, copy your Railway URL: `https://your-app.up.railway.app`
-10. Verify: visit `https://your-app.up.railway.app/health` → should return `{"status":"ok"}`
+5. Add env var `DATABASE_URL` pointing to a PostgreSQL plugin (Railway's filesystem is ephemeral — SQLite files are lost on redeploy, so switch to Postgres for production): click **+ New** → **Database** → **Add PostgreSQL** → Railway auto-sets `DATABASE_URL`
+6. Optional: add `REDIS_URL` from a Redis plugin if you want caching
+7. Click **Deploy** — first build takes ~10 minutes (heavy ML packages)
+8. After deploy, copy your Railway URL: `https://your-app.up.railway.app`
+9. Verify: visit `https://your-app.up.railway.app/health` → should return `{"status":"ok"}`
 
-> **Note:** Prediction endpoints return HTTP 503 until the database is seeded and ML models are trained. The health endpoint always works. See the seeding section in Phase 1 for how to run the seeder against the Railway DATABASE_URL once it's deployed.
+> **Note:** Prediction endpoints return HTTP 503 until the database is seeded and ML models are trained. For local use, SQLite is fine. For Railway, override `DATABASE_URL` with the PostgreSQL connection string.
 
 ### Deploying the Frontend (Vercel)
 
@@ -530,19 +536,21 @@ Railway auto-detects Python via `requirements.txt` and reads `Procfile` for the 
 
 ### Seeding the Railway Database (after backend deploy)
 
-Once Railway is deployed, seed the database from your local machine:
+Once Railway is deployed, seed from your local machine by temporarily overriding DATABASE_URL:
 
 ```powershell
-# Set DATABASE_URL to your Railway Postgres connection string
-# (copy it from Railway project → PostgreSQL plugin → Connect tab)
+# Copy the Postgres URL from Railway project → PostgreSQL plugin → Connect tab
 $env:DATABASE_URL = "postgresql://postgres:xxx@monorail.proxy.rlwy.net:PORT/railway"
 
 cd backend
 .\venv\Scripts\activate
-python scripts/seed_database.py
+python scripts/seed_database.py   # ~10-15 min due to NBA API rate limiting
+
+# Restore local SQLite for day-to-day use
+$env:DATABASE_URL = $null
 ```
 
-This takes ~10-15 minutes due to NBA API rate limiting. After seeding, the `/predictions/*` endpoints will work (still return 503 until models are trained).
+After seeding, the `/predictions/*` endpoints return data (still 503 until models are trained).
 
 ### Training ML Models (after DB is seeded)
 
