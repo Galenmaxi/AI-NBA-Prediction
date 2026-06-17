@@ -194,3 +194,38 @@ def test_predict_player_stats_raises_if_model_missing(tmp_path, monkeypatch):
     from ml.predict import predict_player_stats
     with pytest.raises(FileNotFoundError, match="Model not found"):
         predict_player_stats(_make_player_df(n_players=1, n_games=15))
+
+
+@pytest.fixture()
+def tiny_total_model_path(tmp_path):
+    from xgboost import XGBRegressor
+    from ml.feature_engineering import TOTAL_FEATURE_COLS
+    rng = np.random.default_rng(3)
+    X = rng.uniform(0, 1, (40, len(TOTAL_FEATURE_COLS)))
+    y = rng.uniform(200, 250, 40)
+    m = XGBRegressor(n_estimators=5, verbosity=0)
+    m.fit(X, y)
+    path = tmp_path / "total_model.joblib"
+    joblib.dump(m, path)
+    return path
+
+
+def test_predict_game_total_returns_positive_float(tiny_total_model_path, monkeypatch):
+    import ml.predict as mod
+    mod.clear_model_cache()
+    monkeypatch.setattr(mod, "TOTAL_MODEL_PATH", tiny_total_model_path)
+
+    from ml.predict import predict_game_total
+    result = predict_game_total(_make_team_df(1), _make_team_df(2))
+    assert "predicted_total" in result
+    assert result["predicted_total"] > 0
+
+
+def test_predict_game_total_raises_if_model_missing(tmp_path, monkeypatch):
+    import ml.predict as mod
+    mod.clear_model_cache()
+    monkeypatch.setattr(mod, "TOTAL_MODEL_PATH", tmp_path / "nonexistent.joblib")
+
+    from ml.predict import predict_game_total
+    with pytest.raises(FileNotFoundError, match="Model not found"):
+        predict_game_total(_make_team_df(1), _make_team_df(2))

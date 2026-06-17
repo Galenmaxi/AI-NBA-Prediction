@@ -12,10 +12,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from ml.feature_engineering import (
     PLAYER_FEATURE_COLS,
     TEAM_FEATURE_COLS,
+    TOTAL_FEATURE_COLS,
     build_player_features,
     build_team_features,
 )
 from ml.train_player_model import BEST_PLAYER_MODEL_PATH, STAT_MODEL_PATHS, STAT_TARGETS
+from ml.train_total_model import TOTAL_MODEL_PATH
 from ml.train_win_model import WIN_MODEL_PATH
 
 logger = logging.getLogger(__name__)
@@ -152,6 +154,41 @@ def predict_best_player(players_df: pd.DataFrame) -> list[dict]:
         for idx, (_, row) in enumerate(latest.iterrows())
     ]
     return sorted(results, key=lambda x: x["star_probability"], reverse=True)
+
+
+def predict_game_total(
+    home_team_df: pd.DataFrame,
+    away_team_df: pd.DataFrame,
+) -> dict[str, float]:
+    """Predict total points scored in a game (home + away).
+
+    Args:
+        home_team_df: Historical game logs for the home team.
+            Required columns: team_id, season, game_id, game_date, home_away, wl, pts.
+        away_team_df: Same for the away team.
+
+    Returns:
+        {"predicted_total": float}
+
+    Raises:
+        FileNotFoundError: if the total model .joblib has not been trained yet.
+    """
+    model = _load(TOTAL_MODEL_PATH)
+
+    home_with_dummy = _add_team_dummy_row(home_team_df, is_home=True)
+    away_with_dummy = _add_team_dummy_row(away_team_df, is_home=False)
+
+    home_feat = build_team_features(home_with_dummy)
+    away_feat = build_team_features(away_with_dummy)
+
+    home_row = home_feat[home_feat["game_id"] == "PREDICT"][TEAM_FEATURE_COLS].iloc[0]
+    away_row = away_feat[away_feat["game_id"] == "PREDICT"][TEAM_FEATURE_COLS].iloc[0]
+
+    combined = {f"home_{c}": home_row[c] for c in TEAM_FEATURE_COLS}
+    combined.update({f"away_{c}": away_row[c] for c in TEAM_FEATURE_COLS})
+
+    X = pd.DataFrame([combined])[TOTAL_FEATURE_COLS].values
+    return {"predicted_total": round(float(model.predict(X)[0]), 1)}
 
 
 def predict_player_stats(player_df: pd.DataFrame) -> dict[str, float]:
